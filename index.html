@@ -205,6 +205,7 @@
 
   .mono { font-family: 'DM Mono', monospace; }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
+  .mult-badge { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(255,224,102,0.12); color: var(--highlight); }
 
   .whatif-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
   @media (max-width: 600px) { .whatif-grid { grid-template-columns: 1fr; } }
@@ -260,7 +261,6 @@
     margin-bottom: 16px;
     line-height: 1.5;
   }
-  /* Info-style notice (blue) for normalization */
   .notice-info {
     background: rgba(91,140,255,0.08);
     border: 1px solid rgba(91,140,255,0.25);
@@ -331,6 +331,8 @@
 Example:
 Project 25 %
 01/28/26  Cultural Presentation  100  100  x1  100  100.0
+Summative / Test 40 %
+02/10/26  Chapter 3 Test  45  50  x2  90  90.0
 ..."></textarea>
       <div class="btn-row">
         <button class="btn btn-primary" id="parseBtn" onclick="parseGrades()">⚡ Calculate GPA</button>
@@ -432,7 +434,7 @@ Project 25 %
       <div class="card-desc">Each category (Project, Quiz, Test, Classwork) has a percentage weight. Your final grade is calculated as:</div>
       <div style="background:var(--surface);border-radius:10px;padding:16px;font-family:'DM Mono',monospace;font-size:13px;line-height:2;border:1px solid var(--border);">
         Final = Σ (Category% × Category_Weight / 100)<br>
-        <span style="color:var(--muted)">where each Category% = Σscored / Σpossible × 100</span>
+        <span style="color:var(--muted)">where each Category% = Σ(score×multiplier) / Σ(possible×multiplier) × 100</span>
       </div>
     </div>
   </div>
@@ -503,8 +505,9 @@ function parseGrades() {
   const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
 
   for (const line of lines) {
-    // Category header: "Project 25 %" or "Classwork 20%"
-    const catMatch = line.match(/^([A-Za-z][A-Za-z\s]+?)\s+(\d+)\s*%\s*$/);
+    // FIX 1: Category header now allows "/" and spaces around it
+    // Matches: "Project 25 %" or "Summative / Test 40 %" or "Classwork 20%"
+    const catMatch = line.match(/^([A-Za-z][A-Za-z\s\/]+?)\s+(\d+)\s*%\s*$/);
     if (catMatch) {
       currentCat = catMatch[1].trim();
       if (!cats[currentCat]) cats[currentCat] = { weight: parseFloat(catMatch[2]), assignments: [] };
@@ -523,11 +526,18 @@ function parseGrades() {
       if (/^x\d+$/i.test(tokens[i])) { xIdx = i; break; }
     }
     if (xIdx === -1) continue;
+    if (xIdx < idx + 2) continue;
 
-    if (xIdx < idx + 2) continue; // not enough tokens before x
+    // FIX 2: Extract multiplier value
+    const multiplier = parseInt(tokens[xIdx].replace(/x/i, ''), 10) || 1;
+
     const poss  = parseFloat(tokens[xIdx-1]);
     const score = parseFloat(tokens[xIdx-2]);
     if (isNaN(score) || isNaN(poss) || poss === 0) continue;
+
+    // Apply multiplier to score and possible
+    const weightedScore = score * multiplier;
+    const weightedPoss  = poss  * multiplier;
 
     const pctRaw = parseFloat(tokens[xIdx+2]);
     const pct = isNaN(pctRaw) ? (score/poss*100) : pctRaw;
@@ -536,11 +546,15 @@ function parseGrades() {
     const name = nameTokens.join(' ') || 'Assignment';
     const excused = tokens.some(t => /^[EA]$/i.test(t));
 
-    cats[currentCat].assignments.push({ name, score, poss, pct, excused });
+    cats[currentCat].assignments.push({
+      name, score, poss, multiplier,
+      weightedScore, weightedPoss,
+      pct, excused
+    });
   }
 
   if (Object.keys(cats).length === 0) {
-    alert('Could not parse any grades. Make sure you copied the full Sycamore page text including category headers like "Project 25 %".');
+    alert('Could not parse any grades. Make sure you copied the full Sycamore page text including category headers like "Project 25 %" or "Summative / Test 40 %".');
     return;
   }
 
@@ -560,7 +574,7 @@ function buildWeightsUI() {
     const div = document.createElement('div');
     div.innerHTML = `<label style="margin-bottom:6px">${cat}</label>
       <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" id="w-${cat}" value="${data.weight}" min="0" max="100" oninput="computeAndShow()" style="flex:1">
+        <input type="number" id="w-${CSS.escape(cat)}" value="${data.weight}" min="0" max="100" oninput="computeAndShow()" style="flex:1">
         <span style="color:var(--muted);font-size:13px">%</span>
       </div>`;
     grid.appendChild(div);
@@ -572,21 +586,19 @@ function computeAndShow() {
   const cats = state.categories;
   if (!cats || Object.keys(cats).length === 0) return;
 
-  // Collect raw weights
   let rawWeights = {};
   let totalWeight = 0;
   for (const cat of Object.keys(cats)) {
-    const w = parseFloat(document.getElementById('w-'+cat)?.value) || 0;
+    const el = document.getElementById('w-'+CSS.escape(cat));
+    const w = parseFloat(el?.value) || 0;
     rawWeights[cat] = w;
     totalWeight += w;
   }
 
-  // Normalize weights so they always sum to 100
   const notice = document.getElementById('weightNotice');
   const normalizedWeights = {};
 
   if (totalWeight === 0) {
-    // All zeros — can't compute, show warning
     notice.className = 'notice';
     notice.textContent = '⚠️ All weights are 0. Please enter at least one non-zero weight.';
     notice.classList.remove('hidden');
@@ -599,7 +611,6 @@ function computeAndShow() {
   }
 
   if (needsNormalization) {
-    // Build a breakdown string showing original → normalized
     const breakdown = Object.entries(rawWeights)
       .map(([cat, w]) => `${cat}: ${w}% → ${normalizedWeights[cat].toFixed(1)}%`)
       .join(' &nbsp;|&nbsp; ');
@@ -610,20 +621,19 @@ function computeAndShow() {
     notice.classList.add('hidden');
   }
 
-  // Use normalized weights for all calculations
   state.weights = normalizedWeights;
 
   const results = {};
   for (const [cat, data] of Object.entries(cats)) {
     const w = normalizedWeights[cat];
     const asgns = data.assignments.filter(a => !a.excused);
-    const totalScored = asgns.reduce((s,a)=>s+a.score, 0);
-    const totalPoss   = asgns.reduce((s,a)=>s+a.poss,  0);
+    // FIX 2: Use weightedScore / weightedPoss (multiplier already applied)
+    const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
+    const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
     const pct = totalPoss > 0 ? (totalScored / totalPoss * 100) : 0;
     results[cat] = { pct, weight: w, scored: totalScored, poss: totalPoss };
   }
 
-  // Weighted average (normalized weights already sum to 100)
   let overall = 0;
   for (const r of Object.values(results)) overall += r.pct * (r.weight / 100);
 
@@ -637,7 +647,6 @@ function computeAndShow() {
   catGrid.innerHTML = '';
   for (const [cat, r] of Object.entries(results)) {
     const g = getGrade(r.pct);
-    // Show normalized weight (and raw weight if different)
     const rawW = rawWeights[cat];
     const normW = r.weight;
     const weightLabel = needsNormalization
@@ -649,11 +658,11 @@ function computeAndShow() {
         <span class="cat-weight">${weightLabel}</span>
       </div>
       <div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>
-      <div class="cat-details">${r.scored} / ${r.poss} pts</div>
+      <div class="cat-details">${r.scored} / ${r.poss} weighted pts</div>
     </div>`;
   }
 
-  // Assignment detail tables
+  // Assignment detail tables — now with Multiplier column
   let html = '';
   for (const [cat, data] of Object.entries(cats)) {
     const normW = normalizedWeights[cat];
@@ -664,16 +673,22 @@ function computeAndShow() {
       <div class="scroll-table">
       <table class="assignments-table">
         <thead><tr>
-          <th>Assignment</th><th>Score</th><th>Possible</th><th>%</th><th>Grade</th>
+          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th>
         </tr></thead>
         <tbody>`;
     for (const a of data.assignments) {
       const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
       const rowStyle = a.excused ? ' style="opacity:0.4;font-style:italic;"' : '';
+      const multBadge = a.multiplier > 1
+        ? `<span class="mult-badge">x${a.multiplier}</span>`
+        : `<span style="color:var(--muted);font-size:11px">x1</span>`;
+      const weightedCell = a.excused ? '—' : `${a.weightedScore}/${a.weightedPoss}`;
       html += `<tr${rowStyle}>
         <td>${a.name}</td>
         <td class="mono">${a.score}</td>
         <td class="mono">${a.poss}</td>
+        <td>${multBadge}</td>
+        <td class="mono">${weightedCell}</td>
         <td class="mono">${a.excused ? '—' : a.pct.toFixed(1)+'%'}</td>
         <td><span class="pill bg-${g.cls}">${g.letter}</span></td>
       </tr>`;
@@ -728,8 +743,8 @@ function calcWhatIf() {
   for (const [cat, r] of Object.entries(state.results)) {
     const data = state.categories[cat];
     const asgns = data.assignments.filter(a => !a.excused);
-    const totalScored = asgns.reduce((s,a)=>s+a.score, 0);
-    const totalPoss   = asgns.reduce((s,a)=>s+a.poss,  0);
+    const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
+    const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
     const w = r.weight / 100;
 
     let otherContrib = 0;
@@ -776,7 +791,7 @@ function addManualCat() {
   `;
   document.getElementById('manualCats').appendChild(div);
 }
-addManualCat(); // seed exactly one row
+addManualCat();
 
 function calcManualWhatIf() {
   const rows = document.querySelectorAll('[id^="mcat-"]');
