@@ -161,6 +161,27 @@
   .btn-danger:hover { background: rgba(255,107,107,0.25); }
   .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 
+  /* Excused toggle */
+  .btn-excuse {
+    padding: 3px 9px;
+    font-size: 11px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-excuse:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-excuse.is-excused {
+    background: rgba(255,107,107,0.12);
+    border-color: rgba(255,107,107,0.4);
+    color: var(--accent2);
+  }
+  .btn-excuse.is-excused:hover { background: rgba(255,107,107,0.22); }
+
   .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
   @media (max-width: 600px) { .cat-grid { grid-template-columns: 1fr; } }
 
@@ -202,6 +223,9 @@
   .assignments-table td { padding: 9px 10px; border-bottom: 1px solid rgba(42,47,66,0.5); color: var(--text); font-size: 13px; }
   .assignments-table tr:last-child td { border-bottom: none; }
   .assignments-table tr:hover td { background: rgba(91,140,255,0.04); }
+  /* Excused rows: dim everything except the toggle button */
+  .assignments-table tr.row-excused td { opacity: 0.4; font-style: italic; }
+  .assignments-table tr.row-excused td:last-child { opacity: 1; font-style: normal; }
 
   .mono { font-family: 'DM Mono', monospace; }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
@@ -331,7 +355,7 @@
 Example:
 Project 25 %
 01/28/26  Cultural Presentation  100  100  x1  100  100.0
-Summative / Test 40 %
+[Summative / Test] 40 %
 02/10/26  Chapter 3 Test  45  50  x2  90  90.0
 ..."></textarea>
       <div class="btn-row">
@@ -442,6 +466,25 @@ Summative / Test 40 %
 </div>
 
 <script>
+// ── UTILITIES ─────────────────────────────────────────────────────
+// Safe HTML escaping — prevents any special char in names from breaking markup
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Stable numeric DOM-safe ID for a category name.
+// We keep a map so the same name always gets the same index.
+const _catIdMap = new Map();
+function catId(name) {
+  if (!_catIdMap.has(name)) _catIdMap.set(name, _catIdMap.size);
+  return _catIdMap.get(name);
+}
+
 // ── GRADE SCALE ───────────────────────────────────────────────────
 const GRADE_SCALE = [
   { min: 97, letter: 'A+', cls: 'A' },
@@ -505,9 +548,10 @@ function parseGrades() {
   const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
 
   for (const line of lines) {
-    // FIX 1: Category header now allows "/" and spaces around it
-    // Matches: "Project 25 %" or "Summative / Test 40 %" or "Classwork 20%"
-    const catMatch = line.match(/^([A-Za-z][A-Za-z\s\/]+?)\s+(\d+)\s*%\s*$/);
+    // Category header: optional [ ] wrapping, then a weight like "40 %" or "40%"
+    // The name portion can contain ANY characters (unicode, special chars, etc.)
+    // We match greedily up to the final \s+\d+\s*%\s*$ anchor.
+    const catMatch = line.match(/^\[?([\s\S]+?)\]?\s+(\d+)\s*%\s*$/);
     if (catMatch) {
       currentCat = catMatch[1].trim();
       if (!cats[currentCat]) cats[currentCat] = { weight: parseFloat(catMatch[2]), assignments: [] };
@@ -528,14 +572,12 @@ function parseGrades() {
     if (xIdx === -1) continue;
     if (xIdx < idx + 2) continue;
 
-    // FIX 2: Extract multiplier value
     const multiplier = parseInt(tokens[xIdx].replace(/x/i, ''), 10) || 1;
 
     const poss  = parseFloat(tokens[xIdx-1]);
     const score = parseFloat(tokens[xIdx-2]);
     if (isNaN(score) || isNaN(poss) || poss === 0) continue;
 
-    // Apply multiplier to score and possible
     const weightedScore = score * multiplier;
     const weightedPoss  = poss  * multiplier;
 
@@ -544,7 +586,12 @@ function parseGrades() {
 
     const nameTokens = tokens.slice(idx, xIdx-2);
     const name = nameTokens.join(' ') || 'Assignment';
-    const excused = tokens.some(t => /^[EA]$/i.test(t));
+
+    // FIX 2: Only treat as excused when the very last token in the line
+    // is a standalone "E" or "A" (case-insensitive) AND is not a number.
+    // This prevents assignment names with those letters from false-triggering.
+    const lastToken = tokens[tokens.length - 1];
+    const excused = /^[EA]$/i.test(lastToken) && isNaN(parseFloat(lastToken));
 
     cats[currentCat].assignments.push({
       name, score, poss, multiplier,
@@ -554,7 +601,7 @@ function parseGrades() {
   }
 
   if (Object.keys(cats).length === 0) {
-    alert('Could not parse any grades. Make sure you copied the full Sycamore page text including category headers like "Project 25 %" or "Summative / Test 40 %".');
+    alert('Could not parse any grades. Make sure you copied the full Sycamore page text including category headers like "Project 25 %" or "[Summative / Test] 40 %".');
     return;
   }
 
@@ -571,15 +618,109 @@ function buildWeightsUI() {
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;';
 
   for (const [cat, data] of Object.entries(cats)) {
+    const cid = catId(cat);
     const div = document.createElement('div');
-    div.innerHTML = `<label style="margin-bottom:6px">${cat}</label>
+    div.innerHTML = `<label style="margin-bottom:6px">${esc(cat)}</label>
       <div style="display:flex;align-items:center;gap:8px">
-        <input type="number" id="w-${CSS.escape(cat)}" value="${data.weight}" min="0" max="100" oninput="computeAndShow()" style="flex:1">
+        <input type="number" id="w-${cid}" value="${data.weight}" min="0" max="100" oninput="computeAndShow()" style="flex:1">
         <span style="color:var(--muted);font-size:13px">%</span>
       </div>`;
     grid.appendChild(div);
   }
   container.appendChild(grid);
+}
+
+// Toggle excused state for a specific assignment, then recompute
+function toggleExcused(catName, aIdx) {
+  const a = state.categories[catName].assignments[aIdx];
+  a.excused = !a.excused;
+
+  // Update the row appearance without full re-render
+  const cid = catId(catName);
+  const row = document.getElementById(`row-${cid}-${aIdx}`);
+  const btn = document.getElementById(`excbtn-${cid}-${aIdx}`);
+  if (row) row.className = a.excused ? 'row-excused' : '';
+  if (btn) {
+    btn.className = 'btn-excuse' + (a.excused ? ' is-excused' : '');
+    btn.textContent = a.excused ? '✓ Excused' : 'Excuse';
+  }
+  // Update grade and percentage cells
+  const gradeCell = document.getElementById(`gradecell-${cid}-${aIdx}`);
+  const pctCell   = document.getElementById(`pctcell-${cid}-${aIdx}`);
+  const wCell     = document.getElementById(`wcell-${cid}-${aIdx}`);
+  if (a.excused) {
+    if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-F">Excused</span>`;
+    if (pctCell)   pctCell.textContent = '—';
+    if (wCell)     wCell.textContent   = '—';
+  } else {
+    const g = getGrade(a.pct);
+    if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-${g.cls}">${g.letter}</span>`;
+    if (pctCell)   pctCell.textContent = a.pct.toFixed(1) + '%';
+    if (wCell)     wCell.textContent   = `${a.weightedScore}/${a.weightedPoss}`;
+  }
+
+  // Recompute overall without re-rendering the table (avoids scroll jump)
+  recomputeScores();
+}
+
+function recomputeScores() {
+  const cats = state.categories;
+  let rawWeights = {};
+  let totalWeight = 0;
+  for (const cat of Object.keys(cats)) {
+    const el = document.getElementById('w-'+catId(cat));
+    const w = parseFloat(el?.value) || 0;
+    rawWeights[cat] = w;
+    totalWeight += w;
+  }
+  if (totalWeight === 0) return;
+
+  const normalizedWeights = {};
+  for (const cat of Object.keys(cats)) {
+    normalizedWeights[cat] = (rawWeights[cat] / totalWeight) * 100;
+  }
+
+  const results = {};
+  for (const [cat, data] of Object.entries(cats)) {
+    const w = normalizedWeights[cat];
+    const asgns = data.assignments.filter(a => !a.excused);
+    const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
+    const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
+    const pct = totalPoss > 0 ? (totalScored / totalPoss * 100) : 0;
+    results[cat] = { pct, weight: w, scored: totalScored, poss: totalPoss };
+  }
+
+  let overall = 0;
+  for (const r of Object.values(results)) overall += r.pct * (r.weight / 100);
+
+  const grade = getGrade(overall);
+  document.getElementById('resLetter').textContent = grade.letter;
+  document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
+  document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
+
+  // Update category cards
+  const catGrid = document.getElementById('catGrid');
+  const needsNorm = Math.abs(totalWeight - 100) > 0.01;
+  catGrid.innerHTML = '';
+  for (const [cat, r] of Object.entries(results)) {
+    const g = getGrade(r.pct);
+    const rawW = rawWeights[cat];
+    const normW = r.weight;
+    const weightLabel = needsNorm
+      ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
+      : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+    catGrid.innerHTML += `<div class="cat-card">
+      <div class="cat-header">
+        <span class="cat-name">${esc(cat)}</span>
+        <span class="cat-weight">${weightLabel}</span>
+      </div>
+      <div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>
+      <div class="cat-details">${r.scored} / ${r.poss} weighted pts</div>
+    </div>`;
+  }
+
+  state.results = results;
+  state.overall = overall;
 }
 
 function computeAndShow() {
@@ -589,7 +730,7 @@ function computeAndShow() {
   let rawWeights = {};
   let totalWeight = 0;
   for (const cat of Object.keys(cats)) {
-    const el = document.getElementById('w-'+CSS.escape(cat));
+    const el = document.getElementById('w-'+catId(cat));
     const w = parseFloat(el?.value) || 0;
     rawWeights[cat] = w;
     totalWeight += w;
@@ -627,7 +768,6 @@ function computeAndShow() {
   for (const [cat, data] of Object.entries(cats)) {
     const w = normalizedWeights[cat];
     const asgns = data.assignments.filter(a => !a.excused);
-    // FIX 2: Use weightedScore / weightedPoss (multiplier already applied)
     const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
     const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
     const pct = totalPoss > 0 ? (totalScored / totalPoss * 100) : 0;
@@ -654,7 +794,7 @@ function computeAndShow() {
       : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
     catGrid.innerHTML += `<div class="cat-card">
       <div class="cat-header">
-        <span class="cat-name">${cat}</span>
+        <span class="cat-name">${esc(cat)}</span>
         <span class="cat-weight">${weightLabel}</span>
       </div>
       <div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>
@@ -662,37 +802,42 @@ function computeAndShow() {
     </div>`;
   }
 
-  // Assignment detail tables — now with Multiplier column
+  // Assignment detail tables — with per-row excused toggle
   let html = '';
   for (const [cat, data] of Object.entries(cats)) {
     const normW = normalizedWeights[cat];
     const rawW  = rawWeights[cat];
     const wLabel = needsNormalization ? `${rawW}% → ${normW.toFixed(1)}%` : `${rawW}%`;
+    const cid = catId(cat);
     html += `<div style="margin-bottom:20px">
-      <div class="section-label">${cat} — ${wLabel}</div>
+      <div class="section-label">${esc(cat)} — ${wLabel}</div>
       <div class="scroll-table">
       <table class="assignments-table">
         <thead><tr>
-          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th>
+          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th></th>
         </tr></thead>
         <tbody>`;
-    for (const a of data.assignments) {
+    data.assignments.forEach((a, aIdx) => {
       const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
-      const rowStyle = a.excused ? ' style="opacity:0.4;font-style:italic;"' : '';
+      const rowCls = a.excused ? 'row-excused' : '';
       const multBadge = a.multiplier > 1
         ? `<span class="mult-badge">x${a.multiplier}</span>`
         : `<span style="color:var(--muted);font-size:11px">x1</span>`;
       const weightedCell = a.excused ? '—' : `${a.weightedScore}/${a.weightedPoss}`;
-      html += `<tr${rowStyle}>
-        <td>${a.name}</td>
+      const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
+      const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
+      const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
+      html += `<tr class="${rowCls}" id="row-${cid}-${aIdx}">
+        <td>${esc(a.name)}</td>
         <td class="mono">${a.score}</td>
         <td class="mono">${a.poss}</td>
         <td>${multBadge}</td>
-        <td class="mono">${weightedCell}</td>
-        <td class="mono">${a.excused ? '—' : a.pct.toFixed(1)+'%'}</td>
-        <td><span class="pill bg-${g.cls}">${g.letter}</span></td>
+        <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
+        <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
+        <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
+        <td><button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" onclick="toggleExcused(${JSON.stringify(cat)}, ${aIdx})">${excBtnTxt}</button></td>
       </tr>`;
-    }
+    });
     html += `</tbody></table></div></div>`;
   }
   document.getElementById('assignmentDetails').innerHTML = html;
@@ -707,6 +852,7 @@ function clearAll() {
   document.getElementById('weightsContainer').innerHTML = '';
   document.getElementById('weightNotice').classList.add('hidden');
   state = { categories: {}, weights: {} };
+  _catIdMap.clear();
 }
 
 // ── WHAT-IF ───────────────────────────────────────────────────────
@@ -727,7 +873,7 @@ function buildWhatIfCats() {
   container.innerHTML = '';
   for (const [cat, r] of Object.entries(state.results)) {
     container.innerHTML += `<div class="target-row">
-      <span style="font-size:13px;font-weight:500;min-width:100px">${cat}</span>
+      <span style="font-size:13px;font-weight:500;min-width:100px">${esc(cat)}</span>
       <span class="mono" style="color:var(--muted);font-size:12px">Currently: ${r.pct.toFixed(1)}%</span>
       <span style="color:var(--muted);font-size:12px">Weight: ${r.weight.toFixed(1)}%</span>
     </div>`;
@@ -766,7 +912,7 @@ function calcWhatIf() {
     }
 
     html += `<div class="target-row">
-      <span style="font-size:13px;font-weight:500;min-width:120px">${cat}</span>
+      <span style="font-size:13px;font-weight:500;min-width:120px">${esc(cat)}</span>
       ${statusHTML}
     </div>`;
   }
