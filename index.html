@@ -231,7 +231,80 @@
   .assignments-table tr.row-excused td { opacity: 0.4; font-style: italic; }
   .assignments-table tr.row-excused td:last-child { opacity: 1; font-style: normal; }
 
-  .mono { font-family: 'DM Mono', monospace; }
+  /* Inline add-assignment row */
+  .add-row td { padding: 6px 6px; border-bottom: none; background: rgba(91,140,255,0.04); }
+  .add-row input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    padding: 5px 8px;
+    outline: none;
+    width: 100%;
+    transition: border-color 0.15s;
+  }
+  .add-row input:focus { border-color: var(--accent); }
+  .add-row input::placeholder { color: var(--muted); font-size: 11px; }
+  .btn-add-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 8px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    justify-content: center;
+  }
+  .btn-add-row:hover { border-color: var(--accent); color: var(--accent); background: rgba(91,140,255,0.06); }
+  .btn-confirm-add {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .btn-confirm-add:hover { background: #4a7aee; }
+  .btn-cancel-add {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-cancel-add:hover { color: var(--accent2); border-color: var(--accent2); }
+  .btn-remove-row {
+    padding: 3px 7px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .btn-remove-row:hover { color: var(--accent2); border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.08); }
+  .tag-manual { display: inline-block; font-size: 9px; font-family: 'DM Mono', monospace; background: rgba(91,140,255,0.12); color: var(--accent); border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+
+  .assignments-table th, .assignments-table td { vertical-align: middle; }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
   .mult-badge { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(255,224,102,0.12); color: var(--highlight); }
 
@@ -851,7 +924,7 @@ function computeAndShow() {
         <thead><tr>
           <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th></th>
         </tr></thead>
-        <tbody>`;
+        <tbody id="cat-tbody-${cid}">`;
     data.assignments.forEach((a, aIdx) => {
       const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
       const rowCls = a.excused ? 'row-excused' : '';
@@ -862,18 +935,26 @@ function computeAndShow() {
       const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
       const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
       const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
+      const removBtn = a.manual
+        ? `<button class="btn-remove-row" title="Remove" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="removeAssignment(this.dataset.cat, +this.dataset.idx)">✕</button>`
+        : '';
       html += `<tr class="${rowCls}" id="row-${cid}-${aIdx}">
-        <td>${esc(a.name)}</td>
+        <td>${esc(a.name)}${a.manual ? '<span class="tag-manual">manual</span>' : ''}</td>
         <td class="mono">${a.score}</td>
         <td class="mono">${a.poss}</td>
         <td>${multBadge}</td>
         <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
         <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
         <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
-        <td><button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button></td>
+        <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
+          <button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>
+          ${removBtn}
+        </td>
       </tr>`;
     });
-    html += `</tbody></table></div></div>`;
+    html += `</tbody></table></div>
+      <button class="btn-add-row" data-cat="${esc(cat)}" onclick="addAssignmentRow(this.dataset.cat, this)">＋ Add Assignment</button>
+    </div>`;
   }
   document.getElementById('assignmentDetails').innerHTML = html;
   document.getElementById('resultsSection').classList.remove('hidden');
@@ -890,7 +971,86 @@ function clearAll() {
   _catIdMap.clear();
 }
 
-// ── WHAT-IF ───────────────────────────────────────────────────────
+// ── ADD / REMOVE ASSIGNMENTS ──────────────────────────────────────
+function addAssignmentRow(catName, btn) {
+  // Only allow one input row at a time per category
+  const cid = catId(catName);
+  if (document.getElementById(`add-row-${cid}`)) return;
+
+  // Hide the + button while input row is open
+  btn.style.display = 'none';
+
+  // Find the tbody to append to
+  const tbody = document.querySelector(`#cat-tbody-${cid}`);
+  if (!tbody) return;
+
+  const tr = document.createElement('tr');
+  tr.className = 'add-row';
+  tr.id = `add-row-${cid}`;
+  tr.innerHTML = `
+    <td><input id="ai-name-${cid}" type="text" placeholder="Assignment name" style="min-width:120px"></td>
+    <td><input id="ai-score-${cid}" type="number" placeholder="Score" min="0" style="min-width:54px"></td>
+    <td><input id="ai-poss-${cid}" type="number" placeholder="Possible" min="1" style="min-width:60px"></td>
+    <td><input id="ai-mult-${cid}" type="number" placeholder="1" min="1" value="1" style="min-width:40px"></td>
+    <td colspan="3"></td>
+    <td style="white-space:nowrap;display:flex;gap:4px;align-items:center;padding:6px 6px">
+      <button class="btn-confirm-add" data-cat="${esc(catName)}" onclick="confirmAssignment(this.dataset.cat)">✓ Add</button>
+      <button class="btn-cancel-add" data-cat="${esc(catName)}" onclick="cancelAssignmentRow(this.dataset.cat)">✕</button>
+    </td>`;
+  tbody.appendChild(tr);
+
+  // Allow Enter key to confirm
+  tr.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') confirmAssignment(catName);
+      if (e.key === 'Escape') cancelAssignmentRow(catName);
+    });
+  });
+
+  document.getElementById(`ai-name-${cid}`).focus();
+}
+
+function cancelAssignmentRow(catName) {
+  const cid = catId(catName);
+  const row = document.getElementById(`add-row-${cid}`);
+  if (row) row.remove();
+  // Restore + button
+  const btn = document.querySelector(`.btn-add-row[data-cat="${esc(catName)}"]`);
+  if (btn) btn.style.display = '';
+}
+
+function confirmAssignment(catName) {
+  const cid = catId(catName);
+  const name  = document.getElementById(`ai-name-${cid}`)?.value.trim();
+  const score = parseFloat(document.getElementById(`ai-score-${cid}`)?.value);
+  const poss  = parseFloat(document.getElementById(`ai-poss-${cid}`)?.value);
+  const mult  = parseInt(document.getElementById(`ai-mult-${cid}`)?.value) || 1;
+
+  if (!name) { document.getElementById(`ai-name-${cid}`).focus(); return; }
+  if (isNaN(score)) { document.getElementById(`ai-score-${cid}`).focus(); return; }
+  if (isNaN(poss) || poss <= 0) { document.getElementById(`ai-poss-${cid}`).focus(); return; }
+
+  const pct = score / poss * 100;
+  state.categories[catName].assignments.push({
+    name, score, poss,
+    multiplier: mult,
+    weightedScore: score * mult,
+    weightedPoss:  poss  * mult,
+    pct,
+    excused: false,
+    manual: true,
+  });
+
+  // Remove input row, restore button, then full re-render
+  const row = document.getElementById(`add-row-${cid}`);
+  if (row) row.remove();
+  computeAndShow();
+}
+
+function removeAssignment(catName, aIdx) {
+  state.categories[catName].assignments.splice(aIdx, 1);
+  computeAndShow();
+}
 function refreshWhatIf() {
   if (!state.results) {
     document.getElementById('whatifNoData').classList.remove('hidden');
