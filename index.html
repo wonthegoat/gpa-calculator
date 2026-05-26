@@ -639,7 +639,21 @@ function parseGrades() {
 
     const tokens = line.split(/\s+/);
     let idx = 0;
-    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(tokens[0])) idx = 1;
+
+    // Detect leading excused marker — Sycamore puts E or A at the very start,
+    // either before or after the date. Check token 0 and token 1.
+    let parsedExcused = false;
+    if (/^[EA]$/i.test(tokens[0]) && isNaN(parseFloat(tokens[0]))) {
+      parsedExcused = true;
+      idx = 1; // skip the E/A marker
+    }
+    // Skip date token (MM/DD/YY or MM/DD/YYYY)
+    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(tokens[idx])) idx++;
+    // Also handle E/A appearing after the date
+    if (!parsedExcused && /^[EA]$/i.test(tokens[idx]) && isNaN(parseFloat(tokens[idx]))) {
+      parsedExcused = true;
+      idx++;
+    }
 
     // Find "x\d+" multiplier token
     let xIdx = -1;
@@ -664,16 +678,12 @@ function parseGrades() {
     const nameTokens = tokens.slice(idx, xIdx-2);
     const name = nameTokens.join(' ') || 'Assignment';
 
-    // FIX 2: Only treat as excused when the very last token in the line
-    // is a standalone "E" or "A" (case-insensitive) AND is not a number.
-    // This prevents assignment names with those letters from false-triggering.
-    const lastToken = tokens[tokens.length - 1];
-    const excused = /^[EA]$/i.test(lastToken) && isNaN(parseFloat(lastToken));
-
     cats[currentCat].assignments.push({
       name, score, poss, multiplier,
       weightedScore, weightedPoss,
-      pct, excused
+      pct,
+      excused: parsedExcused,
+      parsedExcused, // locked — user cannot toggle this
     });
   }
 
@@ -747,6 +757,7 @@ function calcResults(cats, normalizedWeights) {
 // Toggle excused state for a specific assignment, then recompute
 function toggleExcused(catName, aIdx) {
   const a = state.categories[catName].assignments[aIdx];
+  if (a.parsedExcused) return; // locked by school — not user-toggleable
   a.excused = !a.excused;
 
   // Update the row appearance without full re-render
@@ -935,6 +946,9 @@ function computeAndShow() {
       const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
       const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
       const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
+      const excCell = a.parsedExcused
+        ? ``
+        : `<button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>`;
       const removBtn = a.manual
         ? `<button class="btn-remove-row" title="Remove" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="removeAssignment(this.dataset.cat, +this.dataset.idx)">✕</button>`
         : '';
@@ -947,7 +961,7 @@ function computeAndShow() {
         <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
         <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
         <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
-          <button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>
+          ${excCell}
           ${removBtn}
         </td>
       </tr>`;
