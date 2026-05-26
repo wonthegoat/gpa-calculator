@@ -174,13 +174,17 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .btn-excuse:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-excuse:hover { border-color: var(--accent2); color: var(--accent2); }
   .btn-excuse.is-excused {
-    background: rgba(255,107,107,0.12);
-    border-color: rgba(255,107,107,0.4);
-    color: var(--accent2);
+    background: rgba(255,107,107,0.88);
+    border-color: #ff6b6b;
+    color: #fff;
+    font-weight: 600;
   }
-  .btn-excuse.is-excused:hover { background: rgba(255,107,107,0.22); }
+  .btn-excuse.is-excused:hover {
+    background: rgba(255,80,80,0.95);
+    border-color: #ff4444;
+  }
 
   .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
   @media (max-width: 600px) { .cat-grid { grid-template-columns: 1fr; } }
@@ -835,7 +839,7 @@ function computeAndShow() {
         <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
         <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
         <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
-        <td><button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" onclick="toggleExcused(${JSON.stringify(cat)}, ${aIdx})">${excBtnTxt}</button></td>
+        <td><button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button></td>
       </tr>`;
     });
     html += `</tbody></table></div></div>`;
