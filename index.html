@@ -634,6 +634,43 @@ function buildWeightsUI() {
   container.appendChild(grid);
 }
 
+// Core calculation — excludes categories where all assignments are excused
+// so their weight is redistributed rather than dragging the average to 0.
+function calcResults(cats, normalizedWeights) {
+  // First pass: compute raw pct per category, flag empty ones
+  const raw = {};
+  for (const [cat, data] of Object.entries(cats)) {
+    const asgns = data.assignments.filter(a => !a.excused);
+    const totalScored = asgns.reduce((s,a) => s + a.weightedScore, 0);
+    const totalPoss   = asgns.reduce((s,a) => s + a.weightedPoss,  0);
+    raw[cat] = { totalScored, totalPoss, hasData: totalPoss > 0 };
+  }
+
+  // Redistribute weight from empty categories to those with data
+  const activeWeight = Object.keys(cats)
+    .filter(cat => raw[cat].hasData)
+    .reduce((s, cat) => s + normalizedWeights[cat], 0);
+
+  const results = {};
+  for (const [cat, data] of Object.entries(cats)) {
+    const r = raw[cat];
+    const pct = r.hasData ? (r.totalScored / r.totalPoss * 100) : null;
+    // Scale weight: active cats share the full 100%, empty cats show 0 contribution
+    const effectiveWeight = r.hasData && activeWeight > 0
+      ? normalizedWeights[cat] / activeWeight * 100
+      : 0;
+    results[cat] = {
+      pct,          // null means fully excused — displayed as "—"
+      weight: normalizedWeights[cat],
+      effectiveWeight,
+      scored: r.totalScored,
+      poss: r.totalPoss,
+      empty: !r.hasData,
+    };
+  }
+  return results;
+}
+
 // Toggle excused state for a specific assignment, then recompute
 function toggleExcused(catName, aIdx) {
   const a = state.categories[catName].assignments[aIdx];
@@ -684,18 +721,12 @@ function recomputeScores() {
     normalizedWeights[cat] = (rawWeights[cat] / totalWeight) * 100;
   }
 
-  const results = {};
-  for (const [cat, data] of Object.entries(cats)) {
-    const w = normalizedWeights[cat];
-    const asgns = data.assignments.filter(a => !a.excused);
-    const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
-    const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
-    const pct = totalPoss > 0 ? (totalScored / totalPoss * 100) : 0;
-    results[cat] = { pct, weight: w, scored: totalScored, poss: totalPoss };
-  }
+  const results = calcResults(cats, normalizedWeights);
 
   let overall = 0;
-  for (const r of Object.values(results)) overall += r.pct * (r.weight / 100);
+  for (const r of Object.values(results)) {
+    if (!r.empty) overall += r.pct * (r.effectiveWeight / 100);
+  }
 
   const grade = getGrade(overall);
   document.getElementById('resLetter').textContent = grade.letter;
@@ -707,19 +738,22 @@ function recomputeScores() {
   const needsNorm = Math.abs(totalWeight - 100) > 0.01;
   catGrid.innerHTML = '';
   for (const [cat, r] of Object.entries(results)) {
-    const g = getGrade(r.pct);
+    const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
     const rawW = rawWeights[cat];
     const normW = r.weight;
     const weightLabel = needsNorm
       ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
       : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+    const scoreDisplay = r.empty
+      ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
+      : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
     catGrid.innerHTML += `<div class="cat-card">
       <div class="cat-header">
         <span class="cat-name">${esc(cat)}</span>
         <span class="cat-weight">${weightLabel}</span>
       </div>
-      <div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>
-      <div class="cat-details">${r.scored} / ${r.poss} weighted pts</div>
+      ${scoreDisplay}
+      <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
     </div>`;
   }
 
@@ -768,18 +802,12 @@ function computeAndShow() {
 
   state.weights = normalizedWeights;
 
-  const results = {};
-  for (const [cat, data] of Object.entries(cats)) {
-    const w = normalizedWeights[cat];
-    const asgns = data.assignments.filter(a => !a.excused);
-    const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
-    const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
-    const pct = totalPoss > 0 ? (totalScored / totalPoss * 100) : 0;
-    results[cat] = { pct, weight: w, scored: totalScored, poss: totalPoss };
-  }
+  const results = calcResults(cats, normalizedWeights);
 
   let overall = 0;
-  for (const r of Object.values(results)) overall += r.pct * (r.weight / 100);
+  for (const r of Object.values(results)) {
+    if (!r.empty) overall += r.pct * (r.effectiveWeight / 100);
+  }
 
   const grade = getGrade(overall);
   document.getElementById('resLetter').textContent = grade.letter;
@@ -790,19 +818,22 @@ function computeAndShow() {
   const catGrid = document.getElementById('catGrid');
   catGrid.innerHTML = '';
   for (const [cat, r] of Object.entries(results)) {
-    const g = getGrade(r.pct);
+    const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
     const rawW = rawWeights[cat];
     const normW = r.weight;
     const weightLabel = needsNormalization
       ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
       : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+    const scoreDisplay = r.empty
+      ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
+      : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
     catGrid.innerHTML += `<div class="cat-card">
       <div class="cat-header">
         <span class="cat-name">${esc(cat)}</span>
         <span class="cat-weight">${weightLabel}</span>
       </div>
-      <div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>
-      <div class="cat-details">${r.scored} / ${r.poss} weighted pts</div>
+      ${scoreDisplay}
+      <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
     </div>`;
   }
 
@@ -876,9 +907,10 @@ function buildWhatIfCats() {
   const container = document.getElementById('whatifCats');
   container.innerHTML = '';
   for (const [cat, r] of Object.entries(state.results)) {
+    const pctDisplay = r.empty ? '— (all excused)' : r.pct.toFixed(1) + '%';
     container.innerHTML += `<div class="target-row">
       <span style="font-size:13px;font-weight:500;min-width:100px">${esc(cat)}</span>
-      <span class="mono" style="color:var(--muted);font-size:12px">Currently: ${r.pct.toFixed(1)}%</span>
+      <span class="mono" style="color:var(--muted);font-size:12px">Currently: ${pctDisplay}</span>
       <span style="color:var(--muted);font-size:12px">Weight: ${r.weight.toFixed(1)}%</span>
     </div>`;
   }
@@ -895,7 +927,7 @@ function calcWhatIf() {
     const asgns = data.assignments.filter(a => !a.excused);
     const totalScored = asgns.reduce((s,a)=>s+a.weightedScore, 0);
     const totalPoss   = asgns.reduce((s,a)=>s+a.weightedPoss,  0);
-    const w = r.weight / 100;
+    const w = r.effectiveWeight / 100;
 
     let otherContrib = 0;
     for (const [c2, r2] of Object.entries(state.results)) {
