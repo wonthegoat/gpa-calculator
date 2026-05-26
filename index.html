@@ -943,7 +943,7 @@ function computeAndShow() {
       <div class="scroll-table">
       <table class="assignments-table">
         <thead><tr>
-          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th></th>
+          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th style="min-width:90px"></th>
         </tr></thead>
         <tbody id="cat-tbody-${cid}">`;
     data.assignments.forEach((a, aIdx) => {
@@ -970,9 +970,11 @@ function computeAndShow() {
         <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
         <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
         <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
-        <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
-          ${excCell}
-          ${removBtn}
+        <td>
+          <div style="display:flex;gap:4px;align-items:center;min-width:90px">
+            ${excCell}
+            ${removBtn}
+          </div>
         </td>
       </tr>`;
     });
@@ -1017,10 +1019,10 @@ function addAssignmentRow(catName, btn) {
     <td><input id="ai-poss-${cid}" type="number" placeholder="Possible" min="1" style="min-width:60px"></td>
     <td><input id="ai-mult-${cid}" type="number" placeholder="1" min="1" value="1" style="min-width:40px"></td>
     <td colspan="3"></td>
-    <td style="white-space:nowrap;display:flex;gap:4px;align-items:center;padding:6px 6px">
+    <td><div style="display:flex;gap:4px;align-items:center;padding:6px 6px">
       <button class="btn-confirm-add" data-cat="${esc(catName)}" onclick="confirmAssignment(this.dataset.cat)">✓ Add</button>
       <button class="btn-cancel-add" data-cat="${esc(catName)}" onclick="cancelAssignmentRow(this.dataset.cat)">✕</button>
-    </td>`;
+    </div></td>`;
   tbody.appendChild(tr);
 
   // Allow Enter key to confirm
