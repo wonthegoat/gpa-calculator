@@ -666,24 +666,34 @@ function parseGrades() {
     const multiplier = parseInt(tokens[xIdx].replace(/x/i, ''), 10) || 1;
 
     const poss  = parseFloat(tokens[xIdx-1]);
-    const score = parseFloat(tokens[xIdx-2]);
-    if (isNaN(score) || isNaN(poss) || poss === 0) continue;
+    const rawScore = parseFloat(tokens[xIdx-2]);
 
-    const weightedScore = score * multiplier;
+    // For excused assignments the score column may be blank — that's fine.
+    // For non-excused assignments, a blank score means 0 (teacher left it empty).
+    // Only hard-skip if poss is missing or zero.
+    if (isNaN(poss) || poss === 0) continue;
+
+    // Detect missing score: tokens[xIdx-2] is not a number
+    const scoreMissing = isNaN(rawScore);
+    const safeScore = scoreMissing ? 0 : rawScore;
+    // If score is missing, tokens[xIdx-2] is the last name word — reclaim it
+    const nameEnd = scoreMissing ? xIdx - 1 : xIdx - 2;
+
+    const weightedScore = safeScore * multiplier;
     const weightedPoss  = poss  * multiplier;
 
     const pctRaw = parseFloat(tokens[xIdx+2]);
-    const pct = isNaN(pctRaw) ? (score/poss*100) : pctRaw;
+    const pct = isNaN(pctRaw) ? (safeScore/poss*100) : pctRaw;
 
-    const nameTokens = tokens.slice(idx, xIdx-2);
+    const nameTokens = tokens.slice(idx, nameEnd);
     const name = nameTokens.join(' ') || 'Assignment';
 
     cats[currentCat].assignments.push({
-      name, score, poss, multiplier,
+      name, score: safeScore, poss, multiplier,
       weightedScore, weightedPoss,
       pct,
       excused: parsedExcused,
-      parsedExcused, // locked — user cannot toggle this
+      parsedExcused,
     });
   }
 
