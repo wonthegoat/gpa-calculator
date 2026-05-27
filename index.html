@@ -6,6 +6,7 @@
 <title>GPA Calculator</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
+  /* ── DARK THEME (default) ── */
   :root {
     --bg: #0d0f14;
     --surface: #161920;
@@ -17,7 +18,103 @@
     --text: #e8eaf0;
     --muted: #6b7280;
     --highlight: #ffe066;
+    --shadow: 0 1px 4px rgba(0,0,0,0.4);
+    --shadow-md: 0 2px 10px rgba(0,0,0,0.4);
+    --grid-line: rgba(91,140,255,0.04);
+    --tab-active-bg: rgba(91,140,255,0.18);
+    --tab-active-color: #a8c0ff;
+    --badge-bg: rgba(91,140,255,0.12);
+    --badge-border: rgba(91,140,255,0.3);
+    --btn-secondary-bg: #161920;
+    --add-row-bg: rgba(91,140,255,0.04);
+    --paste-bg: #161920;
+    --focus-ring: rgba(91,140,255,0.2);
+    --excuse-hover-bg: rgba(255,107,107,0.12);
+    --table-hover: rgba(91,140,255,0.04);
+    --table-border: rgba(42,47,66,0.5);
+    --tag-manual-bg: rgba(91,140,255,0.12);
   }
+
+  /* ── LIGHT THEME ── */
+  :root.light {
+    --bg: #f0f2f5;
+    --surface: #f7f8fa;
+    --card: #ffffff;
+    --border: #dadde1;
+    --accent: #1a73e8;
+    --accent2: #d93025;
+    --accent3: #188038;
+    --text: #202124;
+    --muted: #5f6368;
+    --highlight: #b45309;
+    --shadow: 0 1px 3px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.12);
+    --grid-line: rgba(0,0,0,0.025);
+    --tab-active-bg: #e8f0fe;
+    --tab-active-color: #1a73e8;
+    --badge-bg: #e8f0fe;
+    --badge-border: #c5d8fd;
+    --btn-secondary-bg: #ffffff;
+    --add-row-bg: rgba(26,115,232,0.04);
+    --paste-bg: #f0f2f5;
+    --focus-ring: rgba(26,115,232,0.15);
+    --excuse-hover-bg: #fce8e6;
+    --table-hover: rgba(26,115,232,0.04);
+    --table-border: #e0e0e0;
+    --tag-manual-bg: #e8f0fe;
+  }
+
+  /* ── TAMPER OVERLAY ── */
+  #tamper-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+    padding: 32px;
+  }
+  #tamper-overlay.show { display: flex; }
+  #tamper-overlay h2 { color: #ff6b6b; font-family: 'DM Sans', sans-serif; font-size: 1.4rem; }
+  #tamper-overlay p { color: #9ca3af; font-size: 14px; max-width: 380px; line-height: 1.6; }
+  #tamper-overlay button {
+    margin-top: 8px;
+    padding: 10px 28px;
+    background: #5b8cff;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* ── THEME TOGGLE ── */
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 20px;
+    z-index: 100;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -34,8 +131,8 @@
     position: fixed;
     inset: 0;
     background-image:
-      linear-gradient(rgba(91,140,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(91,140,255,0.04) 1px, transparent 1px);
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
     z-index: 0;
@@ -49,11 +146,11 @@
     z-index: 1;
   }
 
-  header { text-align: center; margin-bottom: 48px; }
+  header { text-align: center; margin-bottom: 40px; }
   .badge {
     display: inline-block;
-    background: rgba(91,140,255,0.12);
-    border: 1px solid rgba(91,140,255,0.3);
+    background: var(--badge-bg);
+    border: 1px solid var(--badge-border);
     color: var(--accent);
     font-family: 'DM Mono', monospace;
     font-size: 11px;
@@ -61,23 +158,20 @@
     text-transform: uppercase;
     padding: 5px 14px;
     border-radius: 999px;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
   h1 {
     font-family: 'Playfair Display', serif;
     font-size: clamp(2.4rem, 6vw, 4rem);
     font-weight: 900;
     line-height: 1.1;
-    background: linear-gradient(135deg, #e8eaf0 30%, #5b8cff 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 12px;
+    color: var(--text);
+    margin-bottom: 10px;
   }
   .subtitle {
     color: var(--muted);
-    font-size: 15px;
-    font-weight: 300;
+    font-size: 14px;
+    font-weight: 400;
     max-width: 500px;
     margin: 0 auto;
     line-height: 1.6;
@@ -85,28 +179,29 @@
 
   .tabs {
     display: flex;
-    gap: 8px;
-    margin-bottom: 28px;
-    background: var(--surface);
+    gap: 4px;
+    margin-bottom: 24px;
+    background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 6px;
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow: var(--shadow);
   }
   .tab {
     flex: 1;
-    padding: 10px 16px;
+    padding: 9px 16px;
     border: none;
     background: transparent;
     color: var(--muted);
     font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
-    border-radius: 10px;
+    border-radius: 7px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
-  .tab.active { background: var(--card); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-  .tab:hover:not(.active) { color: var(--text); }
+  .tab.active { background: var(--tab-active-bg); color: var(--tab-active-color); }
+  .tab:hover:not(.active) { background: var(--surface); color: var(--text); }
 
   .panel { display: none; }
   .panel.active { display: block; }
@@ -114,58 +209,59 @@
   .card {
     background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 28px;
-    margin-bottom: 20px;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
   }
-  .card-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; margin-bottom: 6px; color: var(--text); }
-  .card-desc { color: var(--muted); font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
+  .card-title { font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .card-desc { color: var(--muted); font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
 
   .paste-area {
     width: 100%;
-    min-height: 180px;
-    background: var(--surface);
+    min-height: 160px;
+    background: var(--paste-bg);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 8px;
     color: var(--text);
     font-family: 'DM Mono', monospace;
     font-size: 12px;
-    padding: 16px;
+    padding: 14px;
     resize: vertical;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.15s;
     line-height: 1.6;
   }
-  .paste-area:focus { border-color: var(--accent); }
-  .paste-area::placeholder { color: var(--muted); }
+  .paste-area:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+  .paste-area::placeholder { color: var(--muted); opacity: 0.6; }
 
   .btn {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
-    border-radius: 10px;
+    gap: 6px;
+    padding: 9px 20px;
+    border-radius: 6px;
     border: none;
     font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #4a7aee; transform: translateY(-1px); }
-  .btn-secondary { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
-  .btn-secondary:hover { color: var(--text); border-color: var(--muted); }
-  .btn-sm { padding: 7px 14px; font-size: 12px; border-radius: 8px; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow); }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-secondary { background: var(--btn-secondary-bg); color: var(--muted); border: 1px solid var(--border); }
+  .btn-secondary:hover { color: var(--text); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 5px; }
   .btn-danger { background: rgba(255,107,107,0.15); color: var(--accent2); border: 1px solid rgba(255,107,107,0.3); }
   .btn-danger:hover { background: rgba(255,107,107,0.25); }
-  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .btn-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 
   /* Excused toggle */
   .btn-excuse {
     padding: 3px 9px;
     font-size: 11px;
-    border-radius: 6px;
+    border-radius: 5px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--muted);
@@ -174,44 +270,38 @@
     transition: all 0.15s;
     white-space: nowrap;
   }
-  .btn-excuse:hover { border-color: var(--accent2); color: var(--accent2); }
-  .btn-excuse.is-excused {
-    background: rgba(255,107,107,0.88);
-    border-color: #ff6b6b;
-    color: #fff;
-    font-weight: 600;
-  }
-  .btn-excuse.is-excused:hover {
-    background: rgba(255,80,80,0.95);
-    border-color: #ff4444;
-  }
+  .btn-excuse:hover { border-color: var(--accent2); color: var(--accent2); background: var(--excuse-hover-bg); }
+  .btn-excuse.is-excused { background: var(--accent2); border-color: var(--accent2); color: #fff; font-weight: 600; }
+  .btn-excuse.is-excused:hover { opacity: 0.85; }
 
-  .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
   @media (max-width: 600px) { .cat-grid { grid-template-columns: 1fr; } }
 
   .cat-card {
-    background: var(--surface);
+    background: var(--card);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 16px 18px;
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
   }
-  .cat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-  .cat-name { font-size: 13px; font-weight: 500; color: var(--text); }
-  .cat-weight { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--accent); background: rgba(91,140,255,0.1); padding: 2px 8px; border-radius: 6px; }
-  .cat-score { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; color: var(--text); }
-  .cat-details { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .cat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .cat-name { font-size: 12px; font-weight: 600; color: var(--text); }
+  .cat-weight { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); background: var(--badge-bg); padding: 2px 7px; border-radius: 4px; }
+  .cat-score { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 600; color: var(--text); }
+  .cat-details { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
   .result-box {
-    background: linear-gradient(135deg, rgba(91,140,255,0.1), rgba(72,217,164,0.05));
-    border: 1px solid rgba(91,140,255,0.25);
-    border-radius: 18px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 28px;
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-md);
   }
-  .result-grade-letter { font-family: 'Playfair Display', serif; font-size: 5rem; font-weight: 900; line-height: 1; margin-bottom: 4px; }
-  .result-percent { font-family: 'DM Mono', monospace; font-size: 2rem; margin-bottom: 4px; }
-  .result-label { color: var(--muted); font-size: 14px; }
+  .result-grade-letter { font-family: 'Playfair Display', serif; font-size: 4.5rem; font-weight: 900; line-height: 1; margin-bottom: 4px; }
+  .result-percent { font-family: 'DM Mono', monospace; font-size: 1.8rem; margin-bottom: 4px; color: var(--text); }
+  .result-label { color: var(--muted); font-size: 13px; }
 
   .assignments-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .assignments-table th {
@@ -224,15 +314,15 @@
     padding: 8px 10px;
     border-bottom: 1px solid var(--border);
   }
-  .assignments-table td { padding: 9px 10px; border-bottom: 1px solid rgba(42,47,66,0.5); color: var(--text); font-size: 13px; }
+  .assignments-table td { padding: 9px 10px; border-bottom: 1px solid var(--table-border); color: var(--text); font-size: 13px; }
   .assignments-table tr:last-child td { border-bottom: none; }
-  .assignments-table tr:hover td { background: rgba(91,140,255,0.04); }
+  .assignments-table tr:hover td { background: var(--table-hover); }
   /* Excused rows: dim everything except the toggle button */
   .assignments-table tr.row-excused td { opacity: 0.4; font-style: italic; }
   .assignments-table tr.row-excused td:last-child { opacity: 1; font-style: normal; }
 
   /* Inline add-assignment row */
-  .add-row td { padding: 6px 6px; border-bottom: none; background: rgba(91,140,255,0.04); }
+  .add-row td { padding: 6px 6px; border-bottom: none; background: var(--add-row-bg); }
   .add-row input {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -246,7 +336,7 @@
     transition: border-color 0.15s;
   }
   .add-row input:focus { border-color: var(--accent); }
-  .add-row input::placeholder { color: var(--muted); font-size: 11px; }
+  .add-row input::placeholder { color: var(--muted); font-size: 11px; opacity: 0.7; }
   .btn-add-row {
     display: flex;
     align-items: center;
@@ -302,11 +392,11 @@
     line-height: 1;
   }
   .btn-remove-row:hover { color: var(--accent2); border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.08); }
-  .tag-manual { display: inline-block; font-size: 9px; font-family: 'DM Mono', monospace; background: rgba(91,140,255,0.12); color: var(--accent); border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+  .tag-manual { display: inline-block; font-size: 9px; font-family: 'DM Mono', monospace; background: var(--tag-manual-bg); color: var(--accent); border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
 
   .assignments-table th, .assignments-table td { vertical-align: middle; }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; }
-  .mult-badge { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(255,224,102,0.12); color: var(--highlight); }
+  .mult-badge { display: inline-block; padding: 1px 6px; border-radius: 5px; font-family: 'DM Mono', monospace; font-size: 11px; background: rgba(255,224,102,0.15); color: var(--highlight); }
 
   .whatif-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
   @media (max-width: 600px) { .whatif-grid { grid-template-columns: 1fr; } }
@@ -316,7 +406,7 @@
     width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     color: var(--text);
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
@@ -325,8 +415,8 @@
     transition: border-color 0.2s;
     -moz-appearance: textfield;
   }
-  input:focus, select:focus { border-color: var(--accent); }
-  select option { background: var(--card); }
+  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+  select option { background: var(--card); color: var(--text); }
 
   .target-row {
     display: flex;
@@ -335,7 +425,7 @@
     margin-bottom: 12px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 10px;
     padding: 12px 16px;
     flex-wrap: wrap;
   }
@@ -355,7 +445,7 @@
   .notice {
     background: rgba(255,224,102,0.08);
     border: 1px solid rgba(255,224,102,0.2);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 12px 16px;
     font-size: 13px;
     color: var(--highlight);
@@ -364,8 +454,8 @@
   }
   .notice-info {
     background: rgba(91,140,255,0.08);
-    border: 1px solid rgba(91,140,255,0.25);
-    border-radius: 10px;
+    border: 1px solid rgba(91,140,255,0.2);
+    border-radius: 8px;
     padding: 12px 16px;
     font-size: 13px;
     color: var(--accent);
@@ -373,19 +463,19 @@
     line-height: 1.5;
   }
 
-  .scroll-table { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+  .scroll-table { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
 
   .clr-A { color: #48d9a4; }
   .clr-B { color: #5b8cff; }
-  .clr-C { color: #ffe066; }
+  .clr-C { color: #f0b429; }
   .clr-D { color: #ff9f43; }
   .clr-F { color: #ff6b6b; }
 
-  .bg-A { background: rgba(72,217,164,0.12); color: #48d9a4; }
-  .bg-B { background: rgba(91,140,255,0.12); color: #5b8cff; }
-  .bg-C { background: rgba(255,224,102,0.12); color: #ffe066; }
-  .bg-D { background: rgba(255,159,67,0.12); color: #ff9f43; }
-  .bg-F { background: rgba(255,107,107,0.12); color: #ff6b6b; }
+  .bg-A { background: rgba(72,217,164,0.15); color: #48d9a4; }
+  .bg-B { background: rgba(91,140,255,0.15); color: #5b8cff; }
+  .bg-C { background: rgba(240,180,41,0.15); color: #f0b429; }
+  .bg-D { background: rgba(255,159,67,0.15); color: #ff9f43; }
+  .bg-F { background: rgba(255,107,107,0.15); color: #ff6b6b; }
 
   .hidden { display: none !important; }
   .mt-16 { margin-top: 16px; }
@@ -401,12 +491,26 @@
   .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
   .scale-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
-  .scale-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; text-align: center; }
+  .scale-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; text-align: center; }
   .scale-cell .letter { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; }
   .scale-cell .range { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 2px; }
 </style>
 </head>
 <body>
+
+<!-- Tamper detection overlay -->
+<div id="tamper-overlay">
+  <h2>⚠️ Tampering Detected</h2>
+  <p>The grade display was modified outside of the calculator. This tool does not support manual editing of results.</p>
+  <button onclick="location.reload()">Reload Calculator</button>
+</div>
+
+<!-- Theme toggle -->
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+  <span id="themeIcon">☀️</span>
+  <span id="themeLabel">Light</span>
+</button>
+
 <div class="container">
 
   <header>
@@ -543,6 +647,75 @@ Project 25 %
 </div>
 
 <script>
+// ── THEME ─────────────────────────────────────────────────────────
+(function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const useDark = saved ? saved === 'dark' : prefersDark;
+  if (!useDark) document.documentElement.classList.add('light');
+  updateToggleLabel(!useDark);
+})();
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  updateToggleLabel(isLight);
+}
+
+function updateToggleLabel(isLight) {
+  const icon  = document.getElementById('themeIcon');
+  const label = document.getElementById('themeLabel');
+  if (!icon || !label) return;
+  icon.textContent  = isLight ? '☀️' : '🌙';
+  label.textContent = isLight ? 'Light' : 'Dark';
+}
+
+// ── TAMPER DETECTION ──────────────────────────────────────────────
+let _integrityHash = null;
+let _tamperObserver = null;
+
+// Simple fast hash of grade output string
+function hashStr(s) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+function setIntegrity(overall, letter) {
+  _integrityHash = hashStr(`${overall.toFixed(4)}|${letter}`);
+}
+
+function triggerTamper() {
+  if (_tamperObserver) { _tamperObserver.disconnect(); _tamperObserver = null; }
+  document.getElementById('tamper-overlay').classList.add('show');
+}
+
+function startTamperWatch() {
+  if (_tamperObserver) _tamperObserver.disconnect();
+  const watched = ['resLetter', 'resPercent', 'catGrid', 'assignmentDetails'];
+  _tamperObserver = new MutationObserver((mutations) => {
+    // Allow mutations triggered by our own JS (flagged via _allowMutation)
+    if (window._allowMutation) return;
+    triggerTamper();
+  });
+  watched.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) _tamperObserver.observe(el, { childList: true, subtree: true, characterData: true, attributes: true });
+  });
+}
+
+// Wrap all our own DOM writes so the observer knows they're legitimate
+function withAllowedMutation(fn) {
+  window._allowMutation = true;
+  try { fn(); } finally {
+    // Use a microtask so MutationObserver fires after we clear the flag
+    Promise.resolve().then(() => { window._allowMutation = false; });
+  }
+}
+
 // ── UTILITIES ─────────────────────────────────────────────────────
 // Safe HTML escaping — prevents any special char in names from breaking markup
 function esc(str) {
@@ -771,28 +944,29 @@ function toggleExcused(catName, aIdx) {
   a.excused = !a.excused;
 
   // Update the row appearance without full re-render
-  const cid = catId(catName);
-  const row = document.getElementById(`row-${cid}-${aIdx}`);
-  const btn = document.getElementById(`excbtn-${cid}-${aIdx}`);
-  if (row) row.className = a.excused ? 'row-excused' : '';
-  if (btn) {
-    btn.className = 'btn-excuse' + (a.excused ? ' is-excused' : '');
-    btn.textContent = a.excused ? '✓ Excused' : 'Excuse';
-  }
-  // Update grade and percentage cells
-  const gradeCell = document.getElementById(`gradecell-${cid}-${aIdx}`);
-  const pctCell   = document.getElementById(`pctcell-${cid}-${aIdx}`);
-  const wCell     = document.getElementById(`wcell-${cid}-${aIdx}`);
-  if (a.excused) {
-    if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-F">Excused</span>`;
-    if (pctCell)   pctCell.textContent = '—';
-    if (wCell)     wCell.textContent   = '—';
-  } else {
-    const g = getGrade(a.pct);
-    if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-${g.cls}">${g.letter}</span>`;
-    if (pctCell)   pctCell.textContent = a.pct.toFixed(1) + '%';
-    if (wCell)     wCell.textContent   = `${a.weightedScore}/${a.weightedPoss}`;
-  }
+  withAllowedMutation(() => {
+    const cid = catId(catName);
+    const row = document.getElementById(`row-${cid}-${aIdx}`);
+    const btn = document.getElementById(`excbtn-${cid}-${aIdx}`);
+    if (row) row.className = a.excused ? 'row-excused' : '';
+    if (btn) {
+      btn.className = 'btn-excuse' + (a.excused ? ' is-excused' : '');
+      btn.textContent = a.excused ? '✓ Excused' : 'Excuse';
+    }
+    const gradeCell = document.getElementById(`gradecell-${cid}-${aIdx}`);
+    const pctCell   = document.getElementById(`pctcell-${cid}-${aIdx}`);
+    const wCell     = document.getElementById(`wcell-${cid}-${aIdx}`);
+    if (a.excused) {
+      if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-F">Excused</span>`;
+      if (pctCell)   pctCell.textContent = '—';
+      if (wCell)     wCell.textContent   = '—';
+    } else {
+      const g = getGrade(a.pct);
+      if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-${g.cls}">${g.letter}</span>`;
+      if (pctCell)   pctCell.textContent = a.pct.toFixed(1) + '%';
+      if (wCell)     wCell.textContent   = `${a.weightedScore}/${a.weightedPoss}`;
+    }
+  });
 
   // Recompute overall without re-rendering the table (avoids scroll jump)
   recomputeScores();
@@ -823,34 +997,37 @@ function recomputeScores() {
   }
 
   const grade = getGrade(overall);
-  document.getElementById('resLetter').textContent = grade.letter;
-  document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
-  document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
+  withAllowedMutation(() => {
+    document.getElementById('resLetter').textContent = grade.letter;
+    document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
+    document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
 
-  // Update category cards
-  const catGrid = document.getElementById('catGrid');
-  const needsNorm = Math.abs(totalWeight - 100) > 0.01;
-  catGrid.innerHTML = '';
-  for (const [cat, r] of Object.entries(results)) {
-    const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
-    const rawW = rawWeights[cat];
-    const normW = r.weight;
-    const weightLabel = needsNorm
-      ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
-      : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
-    const scoreDisplay = r.empty
-      ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
-      : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
-    catGrid.innerHTML += `<div class="cat-card">
-      <div class="cat-header">
-        <span class="cat-name">${esc(cat)}</span>
-        <span class="cat-weight">${weightLabel}</span>
-      </div>
-      ${scoreDisplay}
-      <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
-    </div>`;
-  }
+    // Update category cards
+    const catGrid = document.getElementById('catGrid');
+    const needsNorm = Math.abs(totalWeight - 100) > 0.01;
+    catGrid.innerHTML = '';
+    for (const [cat, r] of Object.entries(results)) {
+      const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
+      const rawW = rawWeights[cat];
+      const normW = r.weight;
+      const weightLabel = needsNorm
+        ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
+        : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+      const scoreDisplay = r.empty
+        ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
+        : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
+      catGrid.innerHTML += `<div class="cat-card">
+        <div class="cat-header">
+          <span class="cat-name">${esc(cat)}</span>
+          <span class="cat-weight">${weightLabel}</span>
+        </div>
+        ${scoreDisplay}
+        <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
+      </div>`;
+    }
+  });
 
+  setIntegrity(overall, grade.letter);
   state.results = results;
   state.overall = overall;
 }
@@ -904,95 +1081,105 @@ function computeAndShow() {
   }
 
   const grade = getGrade(overall);
-  document.getElementById('resLetter').textContent = grade.letter;
-  document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
-  document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
 
-  // Category cards
-  const catGrid = document.getElementById('catGrid');
-  catGrid.innerHTML = '';
-  for (const [cat, r] of Object.entries(results)) {
-    const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
-    const rawW = rawWeights[cat];
-    const normW = r.weight;
-    const weightLabel = needsNormalization
-      ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
-      : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
-    const scoreDisplay = r.empty
-      ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
-      : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
-    catGrid.innerHTML += `<div class="cat-card">
-      <div class="cat-header">
-        <span class="cat-name">${esc(cat)}</span>
-        <span class="cat-weight">${weightLabel}</span>
-      </div>
-      ${scoreDisplay}
-      <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
-    </div>`;
-  }
+  withAllowedMutation(() => {
+    document.getElementById('resLetter').textContent = grade.letter;
+    document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
+    document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
 
-  // Assignment detail tables — with per-row excused toggle
-  let html = '';
-  for (const [cat, data] of Object.entries(cats)) {
-    const normW = normalizedWeights[cat];
-    const rawW  = rawWeights[cat];
-    const wLabel = needsNormalization ? `${rawW}% → ${normW.toFixed(1)}%` : `${rawW}%`;
-    const cid = catId(cat);
-    html += `<div style="margin-bottom:20px">
-      <div class="section-label">${esc(cat)} — ${wLabel}</div>
-      <div class="scroll-table">
-      <table class="assignments-table">
-        <thead><tr>
-          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th style="min-width:90px"></th>
-        </tr></thead>
-        <tbody id="cat-tbody-${cid}">`;
-    data.assignments.forEach((a, aIdx) => {
-      const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
-      const rowCls = a.excused ? 'row-excused' : '';
-      const multBadge = a.multiplier > 1
-        ? `<span class="mult-badge">x${a.multiplier}</span>`
-        : `<span style="color:var(--muted);font-size:11px">x1</span>`;
-      const weightedCell = a.excused ? '—' : `${a.weightedScore}/${a.weightedPoss}`;
-      const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
-      const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
-      const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
-      const excCell = a.parsedExcused
-        ? ``
-        : `<button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>`;
-      const removBtn = a.manual
-        ? `<button class="btn-remove-row" title="Remove" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="removeAssignment(this.dataset.cat, +this.dataset.idx)">✕</button>`
-        : '';
-      html += `<tr class="${rowCls}" id="row-${cid}-${aIdx}">
-        <td>${esc(a.name)}${a.manual ? '<span class="tag-manual">manual</span>' : ''}</td>
-        <td class="mono">${a.score}</td>
-        <td class="mono">${a.poss}</td>
-        <td>${multBadge}</td>
-        <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
-        <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
-        <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
-        <td>
-          <div style="display:flex;gap:4px;align-items:center;min-width:90px">
-            ${excCell}
-            ${removBtn}
-          </div>
-        </td>
-      </tr>`;
-    });
-    html += `</tbody></table></div>
-      <button class="btn-add-row" data-cat="${esc(cat)}" onclick="addAssignmentRow(this.dataset.cat, this)">＋ Add Assignment</button>
-    </div>`;
-  }
-  document.getElementById('assignmentDetails').innerHTML = html;
-  document.getElementById('resultsSection').classList.remove('hidden');
+    // Category cards
+    const catGrid = document.getElementById('catGrid');
+    catGrid.innerHTML = '';
+    for (const [cat, r] of Object.entries(results)) {
+      const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
+      const rawW = rawWeights[cat];
+      const normW = r.weight;
+      const weightLabel = needsNormalization
+        ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
+        : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+      const scoreDisplay = r.empty
+        ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
+        : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
+      catGrid.innerHTML += `<div class="cat-card">
+        <div class="cat-header">
+          <span class="cat-name">${esc(cat)}</span>
+          <span class="cat-weight">${weightLabel}</span>
+        </div>
+        ${scoreDisplay}
+        <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
+      </div>`;
+    }
+
+    // Assignment detail tables — with per-row excused toggle
+    let html = '';
+    for (const [cat, data] of Object.entries(cats)) {
+      const normW = normalizedWeights[cat];
+      const rawW  = rawWeights[cat];
+      const wLabel = needsNormalization ? `${rawW}% → ${normW.toFixed(1)}%` : `${rawW}%`;
+      const cid = catId(cat);
+      html += `<div style="margin-bottom:20px">
+        <div class="section-label">${esc(cat)} — ${wLabel}</div>
+        <div class="scroll-table">
+        <table class="assignments-table">
+          <thead><tr>
+            <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th style="min-width:90px"></th>
+          </tr></thead>
+          <tbody id="cat-tbody-${cid}">`;
+      data.assignments.forEach((a, aIdx) => {
+        const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
+        const rowCls = a.excused ? 'row-excused' : '';
+        const multBadge = a.multiplier > 1
+          ? `<span class="mult-badge">x${a.multiplier}</span>`
+          : `<span style="color:var(--muted);font-size:11px">x1</span>`;
+        const weightedCell = a.excused ? '—' : `${a.weightedScore}/${a.weightedPoss}`;
+        const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
+        const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
+        const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
+        const excCell = a.parsedExcused
+          ? ``
+          : `<button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>`;
+        const removBtn = a.manual
+          ? `<button class="btn-remove-row" title="Remove" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="removeAssignment(this.dataset.cat, +this.dataset.idx)">✕</button>`
+          : '';
+        html += `<tr class="${rowCls}" id="row-${cid}-${aIdx}">
+          <td>${esc(a.name)}${a.manual ? '<span class="tag-manual">manual</span>' : ''}</td>
+          <td class="mono">${a.score}</td>
+          <td class="mono">${a.poss}</td>
+          <td>${multBadge}</td>
+          <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
+          <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
+          <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
+          <td>
+            <div style="display:flex;gap:4px;align-items:center;min-width:90px">
+              ${excCell}
+              ${removBtn}
+            </div>
+          </td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>
+        <button class="btn-add-row" data-cat="${esc(cat)}" onclick="addAssignmentRow(this.dataset.cat, this)">＋ Add Assignment</button>
+      </div>`;
+    }
+    document.getElementById('assignmentDetails').innerHTML = html;
+    document.getElementById('resultsSection').classList.remove('hidden');
+  });
+
+  setIntegrity(overall, grade.letter);
+  startTamperWatch();
   state.results = results;
   state.overall = overall;
 }
 
 function clearAll() {
+  if (_tamperObserver) { _tamperObserver.disconnect(); _tamperObserver = null; }
+  _integrityHash = null;
+  window._allowMutation = true;
   document.getElementById('pasteBox').value = '';
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('weightsContainer').innerHTML = '';
   document.getElementById('weightNotice').classList.add('hidden');
+  Promise.resolve().then(() => { window._allowMutation = false; });
   state = { categories: {}, weights: {} };
   _catIdMap.clear();
 }
