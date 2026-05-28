@@ -64,36 +64,6 @@
     --tag-manual-bg: #e8f0fe;
   }
 
-  /* ── TAMPER OVERLAY ── */
-  #tamper-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.92);
-    z-index: 99999;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
-    padding: 32px;
-  }
-  #tamper-overlay.show { display: flex; }
-  #tamper-overlay h2 { color: #ff6b6b; font-family: 'DM Sans', sans-serif; font-size: 1.4rem; }
-  #tamper-overlay p { color: #9ca3af; font-size: 14px; max-width: 380px; line-height: 1.6; }
-  #tamper-overlay button {
-    margin-top: 8px;
-    padding: 10px 28px;
-    background: #5b8cff;
-    color: #fff;
-    border: none;
-    border-radius: 8px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
   /* ── THEME TOGGLE ── */
   .theme-toggle {
     position: fixed;
@@ -498,13 +468,6 @@
 </head>
 <body>
 
-<!-- Tamper detection overlay -->
-<div id="tamper-overlay">
-  <h2>⚠️ Tampering Detected</h2>
-  <p>The grade display was modified outside of the calculator. This tool does not support manual editing of results.</p>
-  <button onclick="location.reload()">Reload Calculator</button>
-</div>
-
 <!-- Theme toggle -->
 <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
   <span id="themeIcon">☀️</span>
@@ -690,7 +653,45 @@ function setIntegrity(overall, letter) {
 
 function triggerTamper() {
   if (_tamperObserver) { _tamperObserver.disconnect(); _tamperObserver = null; }
-  document.getElementById('tamper-overlay').classList.add('show');
+
+  // Nuke the entire document — overlay in DOM can be deleted via DevTools,
+  // but replacing document.body content and locking it down cannot be easily undone.
+  const msg = `
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      html, body { width:100%; height:100%; background:#0d0f14; }
+      body {
+        display:flex; align-items:center; justify-content:center;
+        font-family: 'DM Sans', system-ui, sans-serif;
+        user-select:none; pointer-events:none;
+      }
+      .block {
+        text-align:center; padding:40px 32px; max-width:440px;
+      }
+      h2 { color:#ff6b6b; font-size:1.5rem; margin-bottom:12px; }
+      p  { color:#6b7280; font-size:14px; line-height:1.7; margin-bottom:20px; }
+      .code { font-family:monospace; background:#161920; color:#5b8cff;
+              padding:10px 18px; border-radius:8px; font-size:13px;
+              border:1px solid #2a2f42; display:inline-block; }
+    </style>
+    <div class="block">
+      <h2>⚠️ Tampering Detected</h2>
+      <p>The grade output was modified outside of the calculator.<br>
+         This session has been locked. Reload the page to start over.</p>
+      <div class="code">Please reload the page</div>
+    </div>`;
+
+  // Replace entire document
+  document.open();
+  document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Locked</title></head><body>' + msg + '</body></html>');
+  document.close();
+
+  // Belt-and-suspenders: keep overwriting body every 100ms so DevTools edits don't stick
+  const lock = setInterval(() => {
+    try {
+      document.body.innerHTML = '<div class="block"><h2>⚠️ Tampering Detected</h2><p>The grade output was modified outside of the calculator.<br>This session has been locked. Reload the page to start over.</p><div class="code">Please reload the page</div></div>';
+    } catch(e) {}
+  }, 100);
 }
 
 function startTamperWatch() {
@@ -793,17 +794,32 @@ function parseGrades() {
   const raw = document.getElementById('pasteBox').value.trim();
   if (!raw) { alert('Please paste your grades first.'); return; }
 
+  // Pre-process: if the paste has very few newlines (copy-paste collapsed them),
+  // re-split on date patterns and category weight patterns as natural boundaries.
+  let processed = raw;
+  const newlineCount = (raw.match(/\n/g) || []).length;
+  const charCount = raw.replace(/\s/g, '').length;
+  if (newlineCount < 3 && charCount > 100) {
+    processed = processed
+      // Insert newline before date pattern MM/DD/YY(YY) — start of an assignment row
+      .replace(/([^\n])(\d{2}\/\d{2}\/\d{2,4})/g, '$1\n$2')
+      // Insert newline before a category header pattern: word(s) then digits then %
+      // e.g. "tests (S)30 %" or "Project 25 %"
+      .replace(/([^\n%])([A-Za-z([][A-Za-z\s()\/\[\]]*\d+\s*%)/g, '$1\n$2')
+      // Insert newline before leading E/A excused marker
+      .replace(/([^\n])(\bE\s+\d{2}\/|\bA\s+\d{2}\/)/g, '$1\n$2');
+  }
+
   const cats = {};
   let currentCat = null;
-  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l);
+  const lines = processed.split('\n').map(l=>l.trim()).filter(l=>l);
 
   for (const line of lines) {
-    // Category header: optional [ ] wrapping, then a weight like "40 %" or "40%"
-    // The name portion can contain ANY characters (unicode, special chars, etc.)
-    // We match greedily up to the final \s+\d+\s*%\s*$ anchor.
-    const catMatch = line.match(/^\[?([\s\S]+?)\]?\s+(\d+)\s*%\s*$/);
+    // Category header: optional [ ] wrapping, name can contain any chars including ()
+    // Weight number may be glued directly to the name with no space e.g. "tests (S)30 %"
+    const catMatch = line.match(/^(\[?.+?\]?)\s*(\d+)\s*%\s*$/);
     if (catMatch) {
-      currentCat = catMatch[1].trim();
+      currentCat = catMatch[1].trim().replace(/^\[|\]$/g, '').trim();
       if (!cats[currentCat]) cats[currentCat] = { weight: parseFloat(catMatch[2]), assignments: [] };
       continue;
     }
@@ -1186,14 +1202,11 @@ function clearAll() {
 
 // ── ADD / REMOVE ASSIGNMENTS ──────────────────────────────────────
 function addAssignmentRow(catName, btn) {
-  // Only allow one input row at a time per category
   const cid = catId(catName);
   if (document.getElementById(`add-row-${cid}`)) return;
 
-  // Hide the + button while input row is open
   btn.style.display = 'none';
 
-  // Find the tbody to append to
   const tbody = document.querySelector(`#cat-tbody-${cid}`);
   if (!tbody) return;
 
@@ -1210,9 +1223,9 @@ function addAssignmentRow(catName, btn) {
       <button class="btn-confirm-add" data-cat="${esc(catName)}" onclick="confirmAssignment(this.dataset.cat)">✓ Add</button>
       <button class="btn-cancel-add" data-cat="${esc(catName)}" onclick="cancelAssignmentRow(this.dataset.cat)">✕</button>
     </div></td>`;
-  tbody.appendChild(tr);
 
-  // Allow Enter key to confirm
+  withAllowedMutation(() => tbody.appendChild(tr));
+
   tr.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('keydown', e => {
       if (e.key === 'Enter') confirmAssignment(catName);
@@ -1225,9 +1238,10 @@ function addAssignmentRow(catName, btn) {
 
 function cancelAssignmentRow(catName) {
   const cid = catId(catName);
-  const row = document.getElementById(`add-row-${cid}`);
-  if (row) row.remove();
-  // Restore + button
+  withAllowedMutation(() => {
+    const row = document.getElementById(`add-row-${cid}`);
+    if (row) row.remove();
+  });
   const btn = document.querySelector(`.btn-add-row[data-cat="${esc(catName)}"]`);
   if (btn) btn.style.display = '';
 }
