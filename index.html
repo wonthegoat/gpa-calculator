@@ -634,121 +634,6 @@ function updateToggleLabel(isLight) {
 }
 
 // ── TAMPER DETECTION ──────────────────────────────────────────────
-let _integrityHash = null;
-let _tamperObserver = null;
-
-// Simple fast hash of grade output string
-function hashStr(s) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
-  }
-  return h.toString(16);
-}
-
-function setIntegrity(overall, letter) {
-  _integrityHash = hashStr(`${overall.toFixed(4)}|${letter}`);
-}
-
-function triggerTamper() {
-  if (_tamperObserver) { _tamperObserver.disconnect(); _tamperObserver = null; }
-  if (_heartbeat) { clearInterval(_heartbeat); _heartbeat = null; }
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Session Locked</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{width:100%;height:100%;background:#0d0f14;color:#e8eaf0;font-family:'DM Sans',sans-serif}
-  body{display:flex;align-items:center;justify-content:center;user-select:none}
-  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(91,140,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(91,140,255,0.04) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
-  .card{background:#1c2030;border:1px solid #2a2f42;border-radius:18px;padding:48px 40px;text-align:center;max-width:460px;position:relative;z-index:1;box-shadow:0 8px 40px rgba(0,0,0,0.5)}
-  .icon{font-size:3rem;margin-bottom:20px;display:block}
-  h1{font-family:'Playfair Display',serif;font-size:2rem;font-weight:900;color:#ff6b6b;margin-bottom:12px}
-  p{color:#6b7280;font-size:14px;line-height:1.7;margin-bottom:28px}
-  .badge{display:inline-block;background:rgba(91,140,255,0.12);border:1px solid rgba(91,140,255,0.3);color:#5b8cff;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;padding:5px 14px;border-radius:999px;margin-bottom:24px}
-  button{background:#ff6b6b;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity 0.2s}
-  button:hover{opacity:0.85}
-</style>
-</head>
-<body>
-<div class="card">
-  <span class="badge">GPA Calculator</span>
-  <span class="icon">🔒</span>
-  <h1>Session Locked</h1>
-  <p>The grade display was modified outside of the calculator.<br>This session cannot be used for grade verification.<br>Reload the page to start a new session.</p>
-  <button onclick="location.reload()">Reload Calculator</button>
-</div>
-<script>
-  // Keep rewriting body so DevTools element edits cannot persist
-  setInterval(function(){
-    var b=document.querySelector('.card');
-    if(!b||b.querySelector('h1').textContent!=='Session Locked'){
-      document.body.innerHTML='<div class="card"><span class="badge">GPA Calculator</span><span class="icon">🔒</span><h1>Session Locked</h1><p>The grade display was modified outside of the calculator.<br>This session cannot be used for grade verification.<br>Reload the page to start a new session.</p><button onclick="location.reload()">Reload Calculator</button></div>';
-    }
-  },80);
-<\/script>
-</body></html>`;
-
-  document.open();
-  document.write(html);
-  document.close();
-}
-
-let _heartbeat = null;
-
-function startTamperWatch() {
-  if (_tamperObserver) _tamperObserver.disconnect();
-  if (_heartbeat) clearInterval(_heartbeat);
-
-  const watched = ['resLetter', 'resPercent', 'catGrid', 'assignmentDetails'];
-
-  _tamperObserver = new MutationObserver(() => {
-    if (window._allowMutation) return;
-    triggerTamper();
-  });
-
-  watched.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) _tamperObserver.observe(el, { childList: true, subtree: true, characterData: true, attributes: true });
-  });
-
-  // Heartbeat: check every 300ms that key elements still exist AND
-  // that the grade text still matches our stored integrity hash.
-  _heartbeat = setInterval(() => {
-    if (window._allowMutation) return;
-
-    // Check elements haven't been deleted from the DOM
-    for (const id of watched) {
-      if (!document.getElementById(id)) { triggerTamper(); return; }
-    }
-
-    // Check grade text integrity
-    if (_integrityHash !== null) {
-      const letter  = document.getElementById('resLetter')?.textContent?.trim() || '';
-      const percent = document.getElementById('resPercent')?.textContent?.trim().replace('%','') || '';
-      const parsed  = parseFloat(percent);
-      if (!isNaN(parsed) && letter) {
-        const live = hashStr(`${parsed.toFixed(4)}|${letter}`);
-        if (live !== _integrityHash) { triggerTamper(); return; }
-      }
-    }
-  }, 300);
-}
-
-// Wrap all our own DOM writes so the observer knows they're legitimate
-function withAllowedMutation(fn) {
-  window._allowMutation = true;
-  try { fn(); } finally {
-    // Use a microtask so MutationObserver fires after we clear the flag
-    Promise.resolve().then(() => { window._allowMutation = false; });
-  }
-}
-
 // ── UTILITIES ─────────────────────────────────────────────────────
 // Safe HTML escaping — prevents any special char in names from breaking markup
 function esc(str) {
@@ -992,29 +877,27 @@ function toggleExcused(catName, aIdx) {
   a.excused = !a.excused;
 
   // Update the row appearance without full re-render
-  withAllowedMutation(() => {
-    const cid = catId(catName);
-    const row = document.getElementById(`row-${cid}-${aIdx}`);
-    const btn = document.getElementById(`excbtn-${cid}-${aIdx}`);
-    if (row) row.className = a.excused ? 'row-excused' : '';
-    if (btn) {
-      btn.className = 'btn-excuse' + (a.excused ? ' is-excused' : '');
-      btn.textContent = a.excused ? '✓ Excused' : 'Excuse';
-    }
-    const gradeCell = document.getElementById(`gradecell-${cid}-${aIdx}`);
-    const pctCell   = document.getElementById(`pctcell-${cid}-${aIdx}`);
-    const wCell     = document.getElementById(`wcell-${cid}-${aIdx}`);
-    if (a.excused) {
-      if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-F">Excused</span>`;
-      if (pctCell)   pctCell.textContent = '—';
-      if (wCell)     wCell.textContent   = '—';
-    } else {
-      const g = getGrade(a.pct);
-      if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-${g.cls}">${g.letter}</span>`;
-      if (pctCell)   pctCell.textContent = a.pct.toFixed(1) + '%';
-      if (wCell)     wCell.textContent   = `${a.weightedScore}/${a.weightedPoss}`;
-    }
-  });
+  const cid = catId(catName);
+  const row = document.getElementById(`row-${cid}-${aIdx}`);
+  const btn = document.getElementById(`excbtn-${cid}-${aIdx}`);
+  if (row) row.className = a.excused ? 'row-excused' : '';
+  if (btn) {
+    btn.className = 'btn-excuse' + (a.excused ? ' is-excused' : '');
+    btn.textContent = a.excused ? '✓ Excused' : 'Excuse';
+  }
+  const gradeCell = document.getElementById(`gradecell-${cid}-${aIdx}`);
+  const pctCell   = document.getElementById(`pctcell-${cid}-${aIdx}`);
+  const wCell     = document.getElementById(`wcell-${cid}-${aIdx}`);
+  if (a.excused) {
+    if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-F">Excused</span>`;
+    if (pctCell)   pctCell.textContent = '—';
+    if (wCell)     wCell.textContent   = '—';
+  } else {
+    const g = getGrade(a.pct);
+    if (gradeCell) gradeCell.innerHTML = `<span class="pill bg-${g.cls}">${g.letter}</span>`;
+    if (pctCell)   pctCell.textContent = a.pct.toFixed(1) + '%';
+    if (wCell)     wCell.textContent   = `${a.weightedScore}/${a.weightedPoss}`;
+  }
 
   // Recompute overall without re-rendering the table (avoids scroll jump)
   recomputeScores();
@@ -1045,37 +928,33 @@ function recomputeScores() {
   }
 
   const grade = getGrade(overall);
-  withAllowedMutation(() => {
-    document.getElementById('resLetter').textContent = grade.letter;
-    document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
-    document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
+  document.getElementById('resLetter').textContent = grade.letter;
+  document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
+  document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
 
-    // Update category cards
-    const catGrid = document.getElementById('catGrid');
-    const needsNorm = Math.abs(totalWeight - 100) > 0.01;
-    catGrid.innerHTML = '';
-    for (const [cat, r] of Object.entries(results)) {
-      const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
-      const rawW = rawWeights[cat];
-      const normW = r.weight;
-      const weightLabel = needsNorm
-        ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
-        : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
-      const scoreDisplay = r.empty
-        ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
-        : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
-      catGrid.innerHTML += `<div class="cat-card">
-        <div class="cat-header">
-          <span class="cat-name">${esc(cat)}</span>
-          <span class="cat-weight">${weightLabel}</span>
-        </div>
-        ${scoreDisplay}
-        <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
-      </div>`;
-    }
-  });
+  const catGrid = document.getElementById('catGrid');
+  const needsNorm = Math.abs(totalWeight - 100) > 0.01;
+  catGrid.innerHTML = '';
+  for (const [cat, r] of Object.entries(results)) {
+    const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
+    const rawW = rawWeights[cat];
+    const normW = r.weight;
+    const weightLabel = needsNorm
+      ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
+      : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+    const scoreDisplay = r.empty
+      ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
+      : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
+    catGrid.innerHTML += `<div class="cat-card">
+      <div class="cat-header">
+        <span class="cat-name">${esc(cat)}</span>
+        <span class="cat-weight">${weightLabel}</span>
+      </div>
+      ${scoreDisplay}
+      <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
+    </div>`;
+  }
 
-  setIntegrity(overall, grade.letter);
   state.results = results;
   state.overall = overall;
 }
@@ -1130,105 +1009,96 @@ function computeAndShow() {
 
   const grade = getGrade(overall);
 
-  withAllowedMutation(() => {
-    document.getElementById('resLetter').textContent = grade.letter;
-    document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
-    document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
+  document.getElementById('resLetter').textContent = grade.letter;
+  document.getElementById('resLetter').className = `result-grade-letter clr-${grade.cls}`;
+  document.getElementById('resPercent').textContent = overall.toFixed(2) + '%';
 
-    // Category cards
-    const catGrid = document.getElementById('catGrid');
-    catGrid.innerHTML = '';
-    for (const [cat, r] of Object.entries(results)) {
-      const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
-      const rawW = rawWeights[cat];
-      const normW = r.weight;
-      const weightLabel = needsNormalization
-        ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
-        : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
-      const scoreDisplay = r.empty
-        ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
-        : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
-      catGrid.innerHTML += `<div class="cat-card">
-        <div class="cat-header">
-          <span class="cat-name">${esc(cat)}</span>
-          <span class="cat-weight">${weightLabel}</span>
-        </div>
-        ${scoreDisplay}
-        <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
-      </div>`;
-    }
+  // Category cards
+  const catGrid = document.getElementById('catGrid');
+  catGrid.innerHTML = '';
+  for (const [cat, r] of Object.entries(results)) {
+    const g = r.empty ? { letter: '—', cls: 'F' } : getGrade(r.pct);
+    const rawW = rawWeights[cat];
+    const normW = r.weight;
+    const weightLabel = needsNormalization
+      ? `${rawW}% <span style="opacity:0.6;font-size:10px">→ ${normW.toFixed(1)}%</span>`
+      : `${normW.toFixed(normW % 1 === 0 ? 0 : 1)}%`;
+    const scoreDisplay = r.empty
+      ? `<span style="color:var(--muted);font-size:14px">All excused</span>`
+      : `<div class="cat-score clr-${g.cls}">${r.pct.toFixed(1)}% <span style="font-size:14px">${g.letter}</span></div>`;
+    catGrid.innerHTML += `<div class="cat-card">
+      <div class="cat-header">
+        <span class="cat-name">${esc(cat)}</span>
+        <span class="cat-weight">${weightLabel}</span>
+      </div>
+      ${scoreDisplay}
+      <div class="cat-details">${r.empty ? 'Not counted in overall' : `${r.scored} / ${r.poss} weighted pts`}</div>
+    </div>`;
+  }
 
-    // Assignment detail tables — with per-row excused toggle
-    let html = '';
-    for (const [cat, data] of Object.entries(cats)) {
-      const normW = normalizedWeights[cat];
-      const rawW  = rawWeights[cat];
-      const wLabel = needsNormalization ? `${rawW}% → ${normW.toFixed(1)}%` : `${rawW}%`;
-      const cid = catId(cat);
-      html += `<div style="margin-bottom:20px">
-        <div class="section-label">${esc(cat)} — ${wLabel}</div>
-        <div class="scroll-table">
-        <table class="assignments-table">
-          <thead><tr>
-            <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th style="min-width:90px"></th>
-          </tr></thead>
-          <tbody id="cat-tbody-${cid}">`;
-      data.assignments.forEach((a, aIdx) => {
-        const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
-        const rowCls = a.excused ? 'row-excused' : '';
-        const multBadge = a.multiplier > 1
-          ? `<span class="mult-badge">x${a.multiplier}</span>`
-          : `<span style="color:var(--muted);font-size:11px">x1</span>`;
-        const weightedCell = a.excused ? '—' : `${a.weightedScore}/${a.weightedPoss}`;
-        const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
-        const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
-        const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
-        const excCell = a.parsedExcused
-          ? ``
-          : `<button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>`;
-        const removBtn = a.manual
-          ? `<button class="btn-remove-row" title="Remove" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="removeAssignment(this.dataset.cat, +this.dataset.idx)">✕</button>`
-          : '';
-        html += `<tr class="${rowCls}" id="row-${cid}-${aIdx}">
-          <td>${esc(a.name)}${a.manual ? '<span class="tag-manual">manual</span>' : ''}</td>
-          <td class="mono">${a.score}</td>
-          <td class="mono">${a.poss}</td>
-          <td>${multBadge}</td>
-          <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
-          <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
-          <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
-          <td>
-            <div style="display:flex;gap:4px;align-items:center;min-width:90px">
-              ${excCell}
-              ${removBtn}
-            </div>
-          </td>
-        </tr>`;
-      });
-      html += `</tbody></table></div>
-        <button class="btn-add-row" data-cat="${esc(cat)}" onclick="addAssignmentRow(this.dataset.cat, this)">＋ Add Assignment</button>
-      </div>`;
-    }
-    document.getElementById('assignmentDetails').innerHTML = html;
-    document.getElementById('resultsSection').classList.remove('hidden');
-  });
+  // Assignment detail tables — with per-row excused toggle
+  let html = '';
+  for (const [cat, data] of Object.entries(cats)) {
+    const normW = normalizedWeights[cat];
+    const rawW  = rawWeights[cat];
+    const wLabel = needsNormalization ? `${rawW}% → ${normW.toFixed(1)}%` : `${rawW}%`;
+    const cid = catId(cat);
+    html += `<div style="margin-bottom:20px">
+      <div class="section-label">${esc(cat)} — ${wLabel}</div>
+      <div class="scroll-table">
+      <table class="assignments-table">
+        <thead><tr>
+          <th>Assignment</th><th>Score</th><th>Possible</th><th>Mult.</th><th>Weighted</th><th>%</th><th>Grade</th><th style="min-width:90px"></th>
+        </tr></thead>
+        <tbody id="cat-tbody-${cid}">`;
+    data.assignments.forEach((a, aIdx) => {
+      const g = a.excused ? {letter:'Excused',cls:'F'} : getGrade(a.pct);
+      const rowCls = a.excused ? 'row-excused' : '';
+      const multBadge = a.multiplier > 1
+        ? `<span class="mult-badge">x${a.multiplier}</span>`
+        : `<span style="color:var(--muted);font-size:11px">x1</span>`;
+      const weightedCell = a.excused ? '—' : `${a.weightedScore}/${a.weightedPoss}`;
+      const pctCell = a.excused ? '—' : a.pct.toFixed(1)+'%';
+      const excBtnCls = 'btn-excuse' + (a.excused ? ' is-excused' : '');
+      const excBtnTxt = a.excused ? '✓ Excused' : 'Excuse';
+      const excCell = a.parsedExcused
+        ? ``
+        : `<button class="${excBtnCls}" id="excbtn-${cid}-${aIdx}" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="toggleExcused(this.dataset.cat, +this.dataset.idx)">${excBtnTxt}</button>`;
+      const removBtn = a.manual
+        ? `<button class="btn-remove-row" title="Remove" data-cat="${esc(cat)}" data-idx="${aIdx}" onclick="removeAssignment(this.dataset.cat, +this.dataset.idx)">✕</button>`
+        : '';
+      html += `<tr class="${rowCls}" id="row-${cid}-${aIdx}">
+        <td>${esc(a.name)}${a.manual ? '<span class="tag-manual">manual</span>' : ''}</td>
+        <td class="mono">${a.score}</td>
+        <td class="mono">${a.poss}</td>
+        <td>${multBadge}</td>
+        <td class="mono" id="wcell-${cid}-${aIdx}">${weightedCell}</td>
+        <td class="mono" id="pctcell-${cid}-${aIdx}">${pctCell}</td>
+        <td id="gradecell-${cid}-${aIdx}"><span class="pill bg-${g.cls}">${g.letter}</span></td>
+        <td>
+          <div style="display:flex;gap:4px;align-items:center;min-width:90px">
+            ${excCell}
+            ${removBtn}
+          </div>
+        </td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>
+      <button class="btn-add-row" data-cat="${esc(cat)}" onclick="addAssignmentRow(this.dataset.cat, this)">＋ Add Assignment</button>
+    </div>`;
+  }
+  document.getElementById('assignmentDetails').innerHTML = html;
+  document.getElementById('resultsSection').classList.remove('hidden');
 
-  setIntegrity(overall, grade.letter);
-  startTamperWatch();
   state.results = results;
   state.overall = overall;
 }
 
 function clearAll() {
-  if (_tamperObserver) { _tamperObserver.disconnect(); _tamperObserver = null; }
-  if (_heartbeat) { clearInterval(_heartbeat); _heartbeat = null; }
-  _integrityHash = null;
-  window._allowMutation = true;
   document.getElementById('pasteBox').value = '';
   document.getElementById('resultsSection').classList.add('hidden');
   document.getElementById('weightsContainer').innerHTML = '';
   document.getElementById('weightNotice').classList.add('hidden');
-  Promise.resolve().then(() => { window._allowMutation = false; });
   state = { categories: {}, weights: {} };
   _catIdMap.clear();
 }
@@ -1257,7 +1127,7 @@ function addAssignmentRow(catName, btn) {
       <button class="btn-cancel-add" data-cat="${esc(catName)}" onclick="cancelAssignmentRow(this.dataset.cat)">✕</button>
     </div></td>`;
 
-  withAllowedMutation(() => tbody.appendChild(tr));
+  tbody.appendChild(tr);
 
   tr.querySelectorAll('input').forEach(inp => {
     inp.addEventListener('keydown', e => {
@@ -1271,10 +1141,8 @@ function addAssignmentRow(catName, btn) {
 
 function cancelAssignmentRow(catName) {
   const cid = catId(catName);
-  withAllowedMutation(() => {
-    const row = document.getElementById(`add-row-${cid}`);
-    if (row) row.remove();
-  });
+  const row = document.getElementById(`add-row-${cid}`);
+  if (row) row.remove();
   const btn = document.querySelector(`.btn-add-row[data-cat="${esc(catName)}"]`);
   if (btn) btn.style.display = '';
 }
